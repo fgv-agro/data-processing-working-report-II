@@ -1,0 +1,1059 @@
+---
+title: "Working Report II: Input Data Processing and Preparation for MAgPIE"
+author: "Letícia F. Godoi, Mário L. Vicchietti, Fernando M. Ramos"
+date: "`r Sys.Date()`"
+output:
+  rmdformats::material:
+    base_format: bookdown::html_document2   
+    cards: false
+    lightbox: true
+    thumbnails: true
+    highlight: "tango"
+    fig_caption: true
+    code_folding: "hide"
+bibliography: biblio.bib
+csl: apa.csl
+---
+
+```{=html}
+<style>
+  code {
+    color: #053D7F !important;
+  }
+body {
+  text-align: justify;
+}
+/* pinta a faixa superior do tema material */
+.header-panel,
+.material-header,
+.navbar,
+.navbar-default,
+.navbar-inverse,
+.navbar.navbar-inverse.navbar-fixed-top,
+.site-header {
+  background-color: #053D7F !important;
+  border-color: #053D7F !important;
+}
+
+
+.material-header h1.title,
+h1.title,
+.author, .date,
+.navbar a,
+.navbar .navbar-brand,
+.navbar .nav > li > a {
+  color: #ffffff !important;
+}
+
+/* insere o logo */
+.fgv-logo-fixed {
+  position: fixed;
+  left: 60px;     
+  bottom: 20px;   
+  width: 280px;   
+  z-index: 9999;
+  opacity: 1;
+  background: none !important;
+  padding: 0 !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+.fgv-logo-fixed img {
+  display: block;
+  width: 100%;
+  height: auto;
+  background: none !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+
+@media (min-width: 1400px){
+  .fgv-logo-fixed{ width: 280px; }
+}
+
+
+@media (max-width: 992px){
+  .fgv-logo-fixed{ display: none; }
+}
+
+
+div.figure {
+  width: 100% !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+
+
+.material-doc .section .figure, 
+.material-doc .section .figure img {
+  box-shadow: none !important;   
+  border: none !important;       
+  background: none !important;   
+}
+
+
+.figure img {
+  display: block;
+  margin: 0 auto;
+  max-width: 100% !important;
+  height: auto !important;
+}
+</style>
+```
+
+```{=html}
+<div class="fgv-logo-fixed">
+  <img src="img/logo_fgv.jpeg" alt="FGV">
+</div>
+```
+
+```{r preambulo, warning= FALSE, message = FALSE}
+
+```
+
+# Introduction
+
+The Model of Agricultural Production and Its Impact on the Environment (MAgPIE) is a global land-use modeling framework that simulates agricultural production, land-use change, and environmental impacts under various socio-economic and climate scenarios [@PIKMAgPIE]. In our work, MAgPIE is used as a modeling tool to analyze key variables related to the Brazilian territory and its international interactions, including deforestation, harvested area in agriculture, crop production, cattle herd dynamics, and trade.
+
+Within the MAgPIE settings, spatial variables can be represented at multiple resolutions—ranging from global and regional levels to cluster-based and cellular scales, these with increasing spatial resolution. In the default configuration of MAgPIE *version 4.10.0*, which is the version adopted in our study, the world is divided into 12 regions, with Brazil incorporated into the `LAM` region, which encompasses Latin American countries.
+
+Within the `LAM` region, MAgPIE defines 26 spatial clusters, which are aggregations of cells grouped according to multiple criteria, such as potential crop productivity, land availability, climatic conditions, etc. Importantly, these clusters are not necessarily spatially contiguous, meaning that a single cluster may contain cells spread across multiple countries. This default spatial configuration directly influences the MAgPIE outputs we are analyzing, introducing limitations for representing the specificities of the Brazilian context. Since the cluster definitions do not align with national boundaries, and certain variables—such as trade—are modeled exclusively at the regional level, the reliability of the analyses for Brazil is significantly reduced.
+
+In light of these limitations, we carried out a dedicated process to modify the default MAgPIE configuration in order to define Brazil as a distinct and isolated region. In this new configuration, the clusters within the `BRA` region correspond directly to the 27 Brazilian states. The purpose of this report is to document the steps involved in creating this revised spatial structure, which includes modifications to the core mapping files and the preprocessing of relevant input data.
+
+## Context and objective
+
+This report describes the input data files, details the processing steps performed, and explains the data preparation procedures for running MAgPIE considering a new region corresponding to Brazil. The objective is to guarantee transparency and reproducibility in data processing, as well as to tailor the input datasets to the scope of this study, which centers on analyses related to the national context of Brazil.
+
+# MAgPIE default configuration
+
+In the default configuration of MAgPIE, the global land surface is discretized into spatial grid cells at a $0.5^\circ$ resolution, which are subsequently aggregated into 200 clusters to ensure computational efficiency while preserving regional heterogeneity. These clusters are organized into 12 world regions, each containing a specific number of clusters according to its geographic extent and socioeconomic relevance. This hierarchical structure—grid cell -> cluster -> region—provides the spatial framework for land-use allocation, production modeling, and policy analysis within MAgPIE. The overall distribution of clusters across regions is depicted in Figure 1, highlighting the spatial aggregation scheme adopted in the default setup.
+
+```{r message=FALSE, warning=FALSE,  fig.cap="**Figure 1:** MAgPIE world regions and cluster settings (Default version).", fig.width=8, fig.height=4}
+library(dplyr)
+library(ggplot2)
+library(ggspatial)
+
+df<-readRDS("clustermap_rev4.117_c200_67420_h12.rds")
+
+coords <- strsplit(df$cell, "\\.")  
+mat    <- do.call(rbind, coords) 
+df$lon <- mat[,1]
+df$lat <- mat[,2]
+df$iso <- mat[,3]
+df$lon <- as.numeric(gsub("p", ".", df$lon))
+df$lat <- as.numeric(gsub("p", ".", df$lat))
+
+df_plot <- df %>%
+  mutate(cluster3 = substr(cluster, 1, 3))
+
+valores_unicos <- unique(df_plot$cluster)
+
+resultado <- tibble(valor = valores_unicos) %>%
+  mutate(regiao = substr(valor, 1, 3)) %>%  
+  count(regiao, name = "n")    %>%     
+  mutate(regiao_final = paste0(regiao, " (", n, ")")) 
+
+df_final <- df_plot %>%
+  left_join(resultado, by = c("cluster3" = "regiao"))
+cores_custom <- c(
+ #"#A8A8A8",
+  "#ED9659", "#3CB44B", "#FDD61C", "#898916",
+  "#FF9999", "#9DCFC9", "#4363D8", "#43D4F4", "#820505",
+  "#9A6425", "#911FB4", "#E52654"
+)
+
+
+ggplot(df_final, aes(x = lon, y = lat, fill = regiao_final)) +
+  geom_tile() +
+  coord_equal() +
+  scale_fill_manual(values = cores_custom, 
+                    guide = guide_legend(nrow = 2,
+                    title.position = "top" )) +
+  theme_minimal() +
+  labs(fill = "Region (number of cluster)") +
+  theme(
+    legend.position = "bottom",
+    legend.box = "horizontal",
+    legend.title.align = 0
+  ) 
+
+```
+
+
+Focusing more specifically on the `LAM` region, which comprises the countries of Latin America—including Brazil—this region is represented in the default MAgPIE setup by 26 clusters. The spatial distribution of these clusters, along with their constituent grid cells, is illustrated in Figure 2, where each cluster is depicted in a distinct color for visualization purposes. It is important to emphasize that grid cells assigned to the same cluster are not required to be geographically contiguous. As a result, a single cluster may group together areas that share similar production conditions or land-use characteristics, even if they are spatially dispersed across different countries of the region. Of the 26 clusters in the `LAM region`, numbered 59 to 84, 18 contain at least one grid cell within Brazilian territory.
+
+```{r message=FALSE, warning=FALSE, fig.cap="**Figure 2:** Spatial grid cells in the LAM region, aggregated into clusters according to the MAgPIE default configuration.", fig.height=9, fig.width=8}
+
+library(raster)
+library(sp)
+
+df<-readRDS("clustermap_rev4.117_c200_67420_h12.rds")
+LAM<-subset(df, region=='LAM')
+coords <- strsplit(LAM$cell, "\\.")  
+mat    <- do.call(rbind, coords) 
+LAM$lon <- mat[,1]
+LAM$lat <- mat[,2]
+LAM$iso <- mat[,3]
+LAM$lon <- as.numeric(gsub("p", ".", LAM$lon))
+LAM$lat <- as.numeric(gsub("p", ".", LAM$lat))
+valores_unicos <- unique(LAM$cluster)
+r <- rasterFromXYZ(cbind(LAM[,c("lon","lat")], z=1), 
+                   res = c(min(diff(sort(unique(LAM$lon)))),
+                           min(diff(sort(unique(LAM$lat))))))
+
+polys <- rasterToPolygons(r, dissolve = FALSE)
+pts_sp <- SpatialPointsDataFrame(
+  coords      = LAM[, c("lon","lat")],
+  data        = LAM["cluster", drop = FALSE],
+  proj4string = CRS(proj4string(polys)))
+
+polys$cluster <- over(polys, pts_sp)$cluster
+
+library(Polychrome)
+pal <- createPalette(26, c("#ff0000", "#00ff00", "#0000ff"))   
+cols  <- pal[ match(polys$cluster, valores_unicos) ]
+
+plot(polys,
+     col    = cols,
+     border = "grey80",
+     lwd    = 0.5)
+legend("bottomleft", inset = c(0.05, 0),  
+       legend = valores_unicos,
+       fill = pal, 
+       ncol = 3,
+       cex = 0.6,
+       pt.cex = 0.6
+)                       
+```
+
+# Creation of new clusters
+
+To achieve our objective of analyzing MAgPIE results specifically for the Brazilian territory, we redefined the default configuration of the model of regions and clusters. This required modifications to the mapping files responsible for defining these classifications.
+
+The \textit{regionmapping*} file defines the correspondence between countries and their respective regions. It consists of three data columns: the first contains the full country names, the second the corresponding country codes, and the third the associated regional codes. To create the new region, a single change was made to this file, in the third column, corresponding to the region of Brazil, which now has the code BRA. 
+
+Cluster redefinition is primarily implemented through changes to the \textit{clustermap\_rev*} file, which maps each grid cell to its corresponding region, country, and cluster. In the default configuration, cluster allocation follows a global optimization procedure based on multiple criteria, including potential agricultural productivity, land and water availability, land-use patterns, climatic conditions, population density, and food demand. Although this approach is suitable for global modeling, it does not adequately capture the heterogeneity and regional characteristics of the Brazilian environment.
+
+Therefore, we introduced a new clustering scheme in which the Brazilian territory is subdivided into 27 clusters, each corresponding to one of the Brazilian states. With the separation of Brazil from
+the LAM region, two clusters of the standard configuration no longer exist, `LAM.67` and `LAM.70`, as all of their cells referred to Brazilian territory. Consequently, the numbering of the clusters
+was changed in order to make the numbering continuous. Figure 3 shows the new configuration considered.
+
+```{r message=FALSE, warning=FALSE,  fig.cap="**Figure 3:** MAgPIE new world regions and cluster settings (Brazil version).", fig.width=8, fig.height=4}
+library(dplyr)
+library(ggplot2)
+library(ggspatial)
+
+df<-readRDS("clustermap_rev4.117_c225_67420_h13.rds")
+
+coords <- strsplit(df$cell, "\\.")  
+mat    <- do.call(rbind, coords) 
+df$lon <- mat[,1]
+df$lat <- mat[,2]
+df$iso <- mat[,3]
+df$lon <- as.numeric(gsub("p", ".", df$lon))
+df$lat <- as.numeric(gsub("p", ".", df$lat))
+
+
+df_plot <- df %>%
+  mutate(cluster3 = substr(cluster, 1, 3))
+
+valores_unicos <- unique(df_plot$cluster)
+
+resultado <- tibble(valor = valores_unicos) %>%
+  mutate(regiao = substr(valor, 1, 3)) %>%   
+  count(regiao, name = "n")    %>%      
+  mutate(regiao_final = paste0(regiao, " (", n, ")"))           
+
+df_final <- df_plot %>%
+  left_join(resultado, by = c("cluster3" = "regiao"))
+#3 primeiras letras
+cores_custom <- c(
+ "#A8A8A8",
+  "#ED9659", "#3CB44B", "#FDD61C", "#898916",
+  "#FF9999", "#9DCFC9", "#4363D8", "#43D4F4", "#820505",
+  "#9A6425", "#911FB4", "#E52654"
+)
+
+
+ggplot(df_final, aes(x = lon, y = lat, fill = regiao_final)) +
+  geom_tile() +
+  coord_equal() +
+  scale_fill_manual(values = cores_custom, 
+                    guide = guide_legend(nrow = 2,
+                    title.position = "top" )) +
+  theme_minimal() +
+  labs(fill = "Region (number of cluster)") +
+  theme(
+    legend.position = "bottom",
+    legend.box = "horizontal",
+    legend.title.align = 0
+  ) 
+
+```
+
+By removing Brazilian cells from these clusters and reallocating them to the newly defined BRA clusters, the original structure of the LAM region is modified, as illustrated in Figure 4.
+
+```{r message=FALSE, warning=FALSE,  fig.cap="**Figure 4:** Spatial grid cells in the LAM region, aggregated into clusters according to the new settings.", fig.height=9, fig.width=8}
+library(raster)
+library(sp)
+
+map<-readRDS("clustermap_rev4.117_c225_67420_h13.rds")
+
+LAM<-subset(map, region=='LAM')
+coords <- strsplit(LAM$cell, "\\.")  
+mat    <- do.call(rbind, coords) 
+LAM$lon <- mat[,1]
+LAM$lat <- mat[,2]
+LAM$iso <- mat[,3]
+LAM$lon <- as.numeric(gsub("p", ".", LAM$lon))
+LAM$lat <- as.numeric(gsub("p", ".", LAM$lat))
+valores_unicos <- unique(LAM$cluster)
+
+r <- rasterFromXYZ(cbind(LAM[,c("lon","lat")], z=1), 
+                   res = c(min(diff(sort(unique(LAM$lon)))),
+                           min(diff(sort(unique(LAM$lat))))))
+
+polys <- rasterToPolygons(r, dissolve = FALSE)
+pts_sp <- SpatialPointsDataFrame(
+  coords      = LAM[, c("lon","lat")],
+  data        = LAM["cluster", drop = FALSE],
+  proj4string = CRS(proj4string(polys)))
+polys$cluster <- over(polys, pts_sp)$cluster
+
+library(Polychrome)
+pal <- createPalette(26, c("#ff0000", "#00ff00", "#0000ff"))  # 
+
+cols  <- pal[ match(polys$cluster, valores_unicos)]
+
+plot(polys,
+     col    = cols,
+     border = "grey80",
+     lwd    = 0.5)
+legend("bottomleft", inset = c(0.05, 0),                    
+       legend = valores_unicos,
+       fill = pal, 
+       ncol = 3,
+       cex = 0.6,
+       pt.cex = 0.6
+)                    
+```
+
+The new clusters are named sequentially from `BRA.199` to `BRA.225`. This modification allows the model to reflect more accurately the socio-environmental diversity present across Brazil and enables more detailed spatial analyses.
+
+Moreover, unlike the default clustering, the new configuration imposes a spatial-contiguity constraint: all cells within a Brazilian cluster must be geographically adjacent. This ensures that each cluster represents a continuous geographic region, improving the interpretability of spatial patterns and reducing distortions related to non-contiguous cluster assignments. It is important to emphasize that the current cluster configuration—corresponding to the Brazilian states—represents a preliminary setup intended solely to test the model’s adaptability to a new spatial configuration. In future developments, we aim to enhance the spatial resolution by treating each cluster as a unique cell within Brazil, thereby allowing for fully disaggregated, cell-level modeling across the national territory. Figures 5 illustrates the new spatial configuration adopted.
+
+```{r message=FALSE, warning=FALSE, fig.cap="**Figure 5:** Spatial grid cells in the BRA region, aggregated into clusters according to the new settings.", fig.height=9, fig.width=8}
+library(raster)
+library(sp)
+
+map<-readRDS("clustermap_rev4.117_c225_67420_h13.rds")
+BRA<-subset(map, region=='BRA')
+coords <- strsplit(BRA$cell, "\\.")  
+mat    <- do.call(rbind, coords) 
+BRA$lon <- mat[,1]
+BRA$lat <- mat[,2]
+BRA$iso <- mat[,3]
+BRA$lon <- as.numeric(gsub("p", ".", BRA$lon))
+BRA$lat <- as.numeric(gsub("p", ".", BRA$lat))
+valores_unicos <- unique(BRA$cluster)
+
+r <- rasterFromXYZ(cbind(BRA[,c("lon","lat")], z=1), 
+                   res = c(min(diff(sort(unique(BRA$lon)))),
+                           min(diff(sort(unique(BRA$lat))))))
+
+polys <- rasterToPolygons(r, dissolve = FALSE)
+pts_sp <- SpatialPointsDataFrame(
+  coords      = BRA[, c("lon","lat")],
+  data        = BRA["cluster", drop = FALSE],
+  proj4string = CRS(proj4string(polys))  # usa o mesmo CRS de 'polys'
+)
+polys$cluster <- over(polys, pts_sp)$cluster
+
+
+
+library(Polychrome)
+pal <- createPalette(27, c("#ff0000", "#00ff00", "#0000ff"))  # cores 
+cols  <- pal[ match(polys$cluster, valores_unicos) ]
+myplot<-
+plot(polys,
+     col    = cols,
+     border = "grey80",
+     lwd    = 0.5)#,
+    #add    = TRUE)
+legend("bottomleft", inset = c(0.05, 0),                 
+       legend = valores_unicos,
+       fill = pal, 
+       ncol = 3,
+       cex = 0.6,
+       pt.cex = 0.6
+)               
+
+``` 
+
+# Description of input files and data processing
+
+This chapter presents the input data files required for model execution and describes the data processing steps performed to prepare these files for model execution. The main goal was to reprocess the data considering the newly defined BRA region, ensuring that all inputs were consistent with the requirements of the model.
+
+The input files used for running the model are available in the public PIK repository [@PIKRepository], organized into five input data bundles. Each bundle was thoroughly reviewed to ensure that all datasets were adapted to the new regional configuration. The following sections present all processed input bundles along with their corresponding details.
+
+The preprocessing procedures involved the adaptation of existing routines and the development of new ones when necessary. Several challenges emerged during this process, mainly due to the limited availability of the original scripts used by the model developers. As a result, additional adjustments and manual harmonization steps were required.
+
+## Challenges and limitations in data processing
+
+The data processing phase revealed a series of technical issues related to data structure, metadata consistency, and intermediate scripts. This section documents these challenges and provides context on their origin.
+
+The FAOSTAT datasets [@FAOSTAT] used to compute the model inputs have recently undergone a structural reorganization. As a result, the automated download functions can no longer be executed successfully, as they consistently return the following error:
+
+```{=html}
+<span style="color:red;">Error in download.file(faoMeta$FileLocation, destfile = destfile, mode = "wb"): invalid url argument</span> 
+
+``` 
+
+The access keys for FAO datasets available through the Bulk Download link were modified following a structural reorganization of the platform. As a result, the data download process has become more effort-intensive, since it is now necessary to identify the corresponding database for each dataset and, in some cases, adapt it to the previous structure to ensure compatibility with existing reading functions. Consequently, a comprehensive adaptation of all FAO datasets used by MAgPIE is currently underway to fully reproduce the processing pipeline. Below is a list of the datasets previously used and their corresponding replacements in the new workflow.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+txtFAO<- "
+'Original_Dataset' 'Updated_Dataset'
+'CapitalStock - Investment CapitalStock'  '(in progress)' 
+'CBCrop  - Commodity Balances Crops' 'FBS - Food Balances'
+'CBLive  - Commodity Balances Livestock' 'FBS - Food Balances'
+'Crop - Production Crops'     '(in progress)'  
+'CropLive2010 - Production: Crops and livestock products' 'Production: Crops and livestock products'
+'ForestProdTrade - Forestry Production and Trade' 'Forestry Production and Trade'     
+    'Land -  Land, Inputs and Sustainability: Land Use' 'Land, Inputs and Sustainability: Land Use'       
+    'LiveHead  - Production Livestock' 'Production: Crops and livestock products'        
+    'ValueOfProd  - Production: Value of Agricultural Production' 'Production: Value of Agricultural Production'        
+"
+
+dfFAO <- read.table(text = txtFAO, header = TRUE)
+
+reactable::reactable(
+  dfFAO[, c("Original_Dataset", "Updated_Dataset")],   # colunas visíveis
+  highlight = TRUE,
+  striped = TRUE,
+  bordered = TRUE,
+  defaultExpanded = FALSE
+)
+```
+
+Even after these adjustments, the FAOSTAT databases could not be automatically read and processed by the corresponding functions. Consequently, some files were modified and will be examined in greater detail at a later stage to identify and implement potential corrections. 
+
+A recurring issue involved datasets derived from scientific publications, which are not always provided in a structured, ready-to-use format, nor made available for automated access via download links. In such cases, no dedicated download functions exist, and the following error was encountered:
+
+```{=html}
+<span style="color:red;">ERROR: Sourcefolder does not contain data for the requested source type = type subtype = subtype and there is no download script which could provide the missing data. Please check your settings!</span> 
+``` 
+
+In these cases, it was necessary to manually locate the required datasets and apply the appropriate adjustments so that the data-reading function could be used.
+
+## Overview of main datasets
+
+This section presents the main datasets used as input for the model. 
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+library(RefManageR)
+library(dplyr)
+library(reactable)
+bib <- ReadBib("biblio_database.bib")
+
+keys <- names(bib)
+ref_text <- function(key) {
+  as.character(format(bib[[key]], style = "text"))  
+}
+
+dfref <- data.frame(
+  Database = keys,
+  Reference = sapply(keys, ref_text),
+  stringsAsFactors = FALSE,
+  row.names = NULL
+)
+
+reactable::reactable(dfref)
+```
+
+
+## Processing Procedures and Functions Used
+
+The preprocessing procedures were conducted in the R environment, employing the packages and functions recommended by the model developers. Among these, the madrat package (*version 3.24.1*) and its associated dependencies played a central role. This package, specifically designed for the preprocessing of input data used within the MAgPIE modeling framework, was essential to ensure consistency and reproducibility in data preparation.
+
+One of the most frequently employed functions in this process was `calcOutput()` from the madrat package. This function was developed as a wrapper for specific routines designed to handle the various types of outputs utilized within the model. When executed with a specified output type, `calcOutput()` calls the corresponding function from one of the auxiliary preprocessing packages and performs the entire workflow, ranging from downloading the required datasets to aggregating the data by regions. It is also possible to provide a file containing country-to-region mappings, which enables the function to execute the regional aggregation step automatically.
+
+Another widely used function was `toolAggregate()`, also from the madrat package. This function performs the aggregation (or disaggregation) of a dataset according to a relation matrix or mapping. In addition, it allows for the inclusion of weights, which are applied in the calculation of the final aggregated values.
+
+
+## Bundle cellular: rev4.117_h12_fd712c0b_cellularmagpie_c200_MRI-ESM2-0-ssp370_lpjml-8e6c5eb1.tgz
+
+This bundle contains files processed at all levels, including: cell, country, global, regional, and cluster. Files at the cell, country, and global levels do not require additional processing. 
+
+### Cellular level 
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+txtad2<-"
+Filename Description 
+avl_cropland_0.5 'Cropland suitability based on Zabel et al. (2014).'
+avl_land_full_t_0.5 'Land use initialisation data for different land pools.'
+avl_land_si_0.5 'si and nsi0 areas based on Ramankutty suitability information and LUH area information from initialization year.'
+avl_land_t_0.5 'Land use initialisation data for different land pools.'
+clustermap_rev4.117_c200_67420_h12 'RDS file matching each cell to its cluster.'
+consv_prio_areas_0.5 'Land conservation priority targets in each land type. Land use in conservation priority areas is based on the reference year y1750 (pre-industrial).'
+criticalNitrogenSurplus_0.5 'Critical nitrogen surplus from Schulte-Uebbing et al. 2022.'
+CroplandTreecover_0.5 'Cropland area covered by trees in 2015.'
+f34_urbanland_0.5 'Amount of Urban land expansion for various SSPs.'
+f50_AtmosphericDepositionRates_0.5 'Atmospheric deposition per ha on different land types.'
+f50_NitrogenFixationRateNatural_0.5 'Nitrogen fixation freeliving bacteria.'
+f58_peatland_area_0.5 'Intact and degraded peatland area (Mha) by land-use type, based GPD 2022 and GPM2.0.'
+f58_peatland_degrad_0.5 'Degraded peatland area (Mha) in 0.5 degree resolution based on Humpenoeder et al.'
+lpj_carbon_stocks_0.5 'Carbon in tons per hectar for different land use types.'
+lpj_carbon_topsoil_0.5 'Topsoil carbon in tons per hectar for natural vegetation.'
+lpj_grper_0.5 'Growing days per month.'
+lpj_yields_0.5 'Yields in tons per hectar for different crop types.'
+LUH2_croparea_0.5 'Harvested crop areas from FAOSTAT.'
+luh2_side_layers_0.5 'Data from LUH2 provided by David Leclere from IIASA, Bending the curve on biodiversity loss.'
+MAPSPAM_croparea_0.5 'MAPSPAM cropland area.'
+pot_forest_area_0.5 'Potential forest area.'
+SNVTargetCropland_0.5 'Cropland area (Mha) that requires relocation in response of a share of 20% and 50% semi-natural vegetation in farmed landscapes.'
+transport_distance 'Travel time to major cities or ports.'
+wdpa_baseline_0.5 'Protected land area in terms of cropland, pasture, forest and other land between 1995 and 2020.'
+"
+
+dfad2 <- read.table(text = txtad2, header = TRUE)
+
+reactable::reactable(
+  dfad2[, c("Filename", "Description")],   # colunas visíveis
+  highlight = TRUE,
+  striped = TRUE,
+  bordered = TRUE,
+  defaultExpanded = FALSE
+)
+```
+
+### Country level
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+txtad3<- "
+Filename Description
+avl_cropland_iso 'Cropland suitability based on Zabel et al. (2014).'
+avl_land_full_t_iso 'Land use initialisation data for different land pools.'
+avl_land_t_iso 'Land use initialisation data for different land pools.'
+CroplandTreecover_iso 'Cropland area covered by trees in 2015.'
+f58_peatland_area_iso 'Intact and degraded peatland area (Mha) by land-use type, based GPD 2022 and GPM2.0.'
+regionmappingH12 'CSV file matching each country to its region.'
+"
+
+dfad3 <- read.table(text = txtad3, header = TRUE)
+
+reactable::reactable(
+  dfad3[, c("Filename", "Description")],   # colunas visíveis
+  highlight = TRUE,
+  striped = TRUE,
+  bordered = TRUE,
+  defaultExpanded = FALSE
+)
+```
+
+### Global level: 
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+txtad5<-"
+Filename Description
+f40_transport_costs 'Transport costs in USD per t dm per minute by (Country level) and product.'
+f40_transport_costs_nonlocal 'Transport costs in USD per t dm per minute by (Country level) and product.'
+"
+
+dfad5 <- read.table(text = txtad5, header = TRUE)
+
+reactable::reactable(
+  dfad5[, c("Filename", "Description")],   # colunas visíveis
+  highlight = TRUE,
+  striped = TRUE,
+  bordered = TRUE,
+  defaultExpanded = FALSE
+)
+```
+
+### Regional level
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+txtad4<- "
+Filename Description Code Dataset
+f13_pastr_tau_hist 'Historical trends in managed pastures land use intensity (Tau) based on FAO yield trends.' '(in progress)' '(in progress)'
+" 
+
+dfad4 <- read.table(text = txtad4, header = TRUE)
+
+reactable::reactable(
+  dfad4[, c("Filename", "Description")],   #colunas visíveis
+  highlight = TRUE,
+  striped = TRUE,
+  bordered = TRUE,
+  defaultExpanded = FALSE,
+  details = function(index) {
+    item <- dfad4[index, ]
+
+    htmltools::div(
+      style = "padding: 15px; background: #f8f8f8;", #conteúdo oculto
+      htmltools::tags$h4(paste("Datasets:")),
+      htmltools::tags$p(item$Dataset),  
+      htmltools::tags$h4(paste("Method:")),
+      htmltools::tags$code(item$Code)
+    )
+  }
+)
+
+```
+
+### Cluster level 
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+library(htmltools)
+library(reactable)
+txtad<- "
+Filename Description Code Dataset
+aff_noboreal_c200 '-' '(in progress)' 'LUH3'
+aff_onlytropical_c200 '-' '(in progress)' 'LUH3'
+aff_unrestricted_c200 '-' '(in progress)' 'LUH3'
+avl_cropland_c200 'Cropland suitability based on Zabel et al. (2014)' 'toolAggregate(avlcrop,rel=regionfilecluster, from=\"cell\", to=\"cluster\")' '-'
+avl_irrig_c200 'Area equipped for irrigation' 'calcOutput(type = \"AreaEquippedForIrrigation\", aggregate = \"cluster\", file = \"avl_irrig_c200.mz\", round = 5, cells = \"lpjcell\", cellular = TRUE, selectyears = c(\"y1995\", \"y2000\", \"y2005\", \"y2010\", \"y2015\"), regionmapping = regionfilecluster)
+' 'LUH3, Mehta2024'
+avl_land_full_t_c200 'Land use initialisation data for different land pools' 'toolAggregate(avl_l,rel=regionfilecluster, from=\"cell\", to=\"cluster\")' '-'
+avl_land_si_c200 'si and nsi0 areas based on Ramankutty suitability information and LUH area information from initialization year' 'toolAggregate(avl_lsi,rel=regionfilecluster, from=\"cell\", to=\"cluster\")' '-'
+avl_land_t_c200 'Land use initialisation data for different land pools' 'toolAggregate(avl_lt,rel=regionfilecluster, from=\"cell\", to=\"cluster\")' '-'
+biorealm_biome_c200 'Mha of biome type of each' '(in progress)' 'TNC2019, LUH3'
+cell_country_fraction_c200 'Cell fraction belonging to a country' '(in progress)' 'LUH3'
+consv_prio_areas_c200 'Land conservation priority targets in each land type. Land use in conservation priority areas is based on the reference year y1750 (pre-industrial)' 'toolAggregate(consvp,rel=regionfilecluster, from=\"cell\", to=\"cluster\")' '-'
+CroplandTreecover_c200 'Cropland area covered by trees in 2015' 'toolAggregate(cropl,rel=regionfilecluster, from=\"cell\", to=\"cluster\")' '-'
+cshare_released_c200 'Soil organic carbon loss share per crop type' '(in progress)' 'IPCCClimate'
+f09_pop_grid 'Population in millions' '(in progress)' 'GridPopIsimip, GridPopGao'
+f09_urbanpop_grid 'Population in millions' '(in progress)' 'GridPopIsimip, GridPopGao'
+f14_degradation_yld_reduc_c200 'Dummy file for yield reduction coefficients to represent land degradation' 'calcOutput(type = \"DegradationYieldReduction\", aggregate = \"cluster\", file = \"f14_degradation_yld_reduc_c200.mz\", round = 6, regionmapping = regionfilecluster)' '-'
+f30_croparea_initialisation_c200 'Harvested crop areas from FAOSTAT' '(in progress)' 'FAO'
+f30_croparea_w_initialisation_c200 'Harvested crop areas from FAOSTAT' '(in progress)' 'FAO'
+f32_bph_effect_noTCRE_c200 'Biogeophysical temp change of afforestation in degC' '(in progress)' '(in progress)'
+f32_bph_mask_c200 'Nonan Mask of BPH Effect Dataset' '(in progress)' '(in progress)'
+f32_localTCRE_c200 'Local Transient Climate Response to tc per ha in degC' '(in progress)' '(in progress)'
+f34_urbanland_c200 'Amount of Urban land expansion for various SSPs' 'toolAggregate(f34urbanl,rel=regionfilecluster, from=\"cell\", to=\"cluster\")' '-'
+f37_labourprodimpact_c200 'Remaining labour productivity as percentage of full labour' '(in progress)' '(in progress)'
+f37_labourprodrelief_c200 'Remaining labour productivity as percentage of full labour' '(in progress)' '(in progress)'
+f50_AtmosphericDepositionRates_c200 'Atmospheric deposition per ha on different land types' 'toolAggregate(f50atmo,rel=regionfilecluster, from=\"cell\", to=\"cluster\")' '-'
+f50_NitrogenFixationRateNatural_c200 'Nitrogen fixation freeliving bacteria' 'toolAggregate(f50nitro,rel=regionfilecluster, from=\"cell\", to=\"cluster\")' '-'
+f58_peatland_area_c200 'Intact and degraded peatland area (Mha) by land-use type, based GPD 2022 and GPM2.0' 'toolAggregate(f58peatl,rel=regionfilecluster, from=\"cell\", to=\"cluster\")' '-'
+f58_peatland_degrad_c200 'Degraded peatland area (Mha) in 0.5 degree resolution based on Humpenoeder et al' 'toolAggregate(f58peatdegrad,rel=regionfilecluster, from=\"cell\", to=\"cluster\")' '-'
+f58_peatland_intact_c200 'Intact peatland area (Mha) in 0.5 degree resolution based on Humpenoeder et al ' 'toolAggregate(f58peatint,rel=regionfilecluster, from=\"cell\", to=\"cluster\")' '-'
+f59_som_initialisation_pools_c200 'Soil carbon in cropland and non-cropland soils' '(in progress)' '(in progress)'
+forestageclasses_c200 'Forest area in 15 age classes based the Global level Forest Age ' 'calcOutput(type = \"AgeClassDistribution\", aggregate = \"cluster\", file = \"forestageclasses_c200.mz\", round = 6, regionmapping = regionfilecluster)' 'GFAD'
+ipcc_climate_zones_c200 'Climate classification according to: ipcc ' '(in progress)' 'LUH3'
+koeppen_geiger_c200 'Climate classification according to: koeppen (Cluster level)' '(in progress)' 'Koeppen'
+lpj_airrig_c200 'Irrigation water (water applied in addition to rainfall) for different crop types following LPJmL irrigation system assumptions' '(in progress)' '(in progress)'
+lpj_carbon_stocks_c200 'Carbon in tons per hectar for different land use types' 'toolAggregate(lpjcarbonstock,rel=regionfilecluster, from=\"cell\", to=\"cluster\")' '-'
+lpj_carbon_topsoil_c200 'Topsoil carbon in tons per hectar for natural vegetation' 'toolAggregate(lpjcarbontop,rel=regionfilecluster, from=\"cell\", to=\"cluster\")' '-'
+lpj_envflow_grper_c200 'EFR according to Smakthin method in grper' '(in progress)' '(in progress)'
+lpj_envflow_total_c200 'EFR according to Smakthin method in total' '(in progress)' '(in progress)'
+lpj_watavail_grper_c200 'Available water in grper' '(in progress)' '(in progress)'
+lpj_watavail_total_c200 'Available water in total' '(in progress)' '(in progress)'
+lpj_yields_c200 'Yields in tons per hectar for different crop types' 'toolAggregate(lpjyields,rel=regionfilecluster, from=\"cell\", to=\"cluster\")' '-'
+luh2_side_layers_c200 'Data from LUH2 provided by David Leclere from IIASA, Bending the curve on biodiversity loss' 'toolAggregate(luh2side,rel=regionfilecluster, from=\"cell\", to=\"cluster\")' '-'
+npi_ndc_ad_aolc_pol_c200 'Dummy file for implementing forestry prescribed exogoneously by NDC/NPI policy as opposed to CDR GHG prices' 'calcOutput(type = \"NpiNdcAdAolcPol\", aggregate = \"cluster\", file = \"npi_ndc_ad_aolc_pol_c200.mz\", round = 5, regionmapping = regionfilecluster) 
+' '-'
+npi_ndc_aff_pol_c200 'Dummy file for NPI/INDC policies' 'calcOutput(type = \"NpiNdcAffPol\", aggregate = \"cluster\", file = \"npi_ndc_aff_pol_c200.mz\", round = 5, regionmapping = regionfilecluster) ' '-'
+pot_forest_area_c200 'Potential forest area' 'toolAggregate(potforestarea,rel=regionfilecluster, from=\"cell\", to=\"cluster\")' '-'
+protect_area_c200 'Conservation priority areas' '(in progress)' 'LUH3'
+rr_layer_c200 'Range-rarity layer provided by David Leclere from IIASA, Bending the curve on biodiversity loss' '(in progress)' '(in progress)'
+SNVTargetCropland_c200 'Cropland area (Mha) that requires relocation in response of a share of 20% and 50% semi-natural vegetation in farmed landscapes' 'toolAggregate(SNVtarget,rel=regionfilecluster, from=\"cell\", to=\"cluster\")' '-'
+transport_distance_c200 'Travel time to major cities or ports' 'toolAggregate(transportdis,rel=regionfilecluster, from=\"cell\", to=\"cluster\")' '-'
+watdem_nonagr_grper_c200 'Non-agricultural water demand (manufacturing, electricity, domestic) in growing period' '(in progress)' 'ISIMIPinputs'
+watdem_nonagr_total_c200 'Total non-agricultural water demand (manufacturing, electricity, domestic)' '(in progress)' 'ISIMIPinputs'
+wdpa_baseline_c200 'Protected land area in terms of cropland, pasture, forest and other land between 1995 and 2020' 'toolAggregate(wdpabaseline,rel=regionfilecluster, from=\"cell\", to=\"cluster\")' '-'
+"
+
+dfad <- read.table(text = txtad, header = TRUE, quote = "'", sep = " ")
+
+reactable::reactable(
+  dfad[, c("Filename", "Description")],   # colunas visíveis
+  highlight = TRUE,
+  striped = TRUE,
+  bordered = TRUE,
+  defaultExpanded = FALSE,
+
+  details = function(index) {
+    item <- dfad[index, ]
+    pdf_file <- paste0("img/", item$Filename, ".pdf")
+
+    htmltools::div(
+      style = "padding: 15px; background: #f8f8f8;",
+
+      # Dataset
+      htmltools::tags$h4("Datasets:"),
+      htmltools::tags$p(item$Dataset),
+
+      # PDF no lugar do CODE
+      htmltools::tags$h4("Plot:"),
+      htmltools::tags$object(
+        data   = pdf_file,
+        type   = "application/pdf",
+        width  = "100%",
+        height = "300px",
+        style  = "border:1px solid #ccc; border-radius:4px;",
+        htmltools::tags$p(
+          "PDF não suportado. ",
+          htmltools::tags$a(
+            href = pdf_file,
+            target = "_blank",
+            "Abrir PDF"
+          )
+        )
+      )
+    )
+  }
+)
+```
+
+
+## Bundle regional: rev4.117_h12_magpie.tgz
+
+This bundle contains the largest number of files, most of which are already processed at the regional level. However, it also includes datasets at the global and country levels, which do not require additional processing. 
+
+### Country level files: 
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+library(reactable)
+library(htmltools)
+
+txt<- "
+Filename  Description 
+f09_demography 'Population by age, sex and education.' 
+f09_gpd_mer_iso  'GDP SSPs scenarios.' 
+f09_gdp_ppp_iso 'GDP SSPs scenarios.' 
+f09_physical_inactivity  'Intake estimate based on normalized body weights.' 
+f09_pop_iso	'Population SSPs scenarios.' 	
+f09_urban_iso	'Urban SSPs scenarios.'    
+f15_bmi_shr_past	'Share of population belonging to a BMI group.'	
+f15_bodyheight_historical	'Bodyheight by age and sex.' 
+f15_calib_factor_FAOfsupply_iso	'Factor for calibrating estimated food supply.'
+f15_fruitveg2others_kcal_ratio_iso	'Share of fruits and vegetables in the others food group.'
+f15_intake_EATLancet_iso	'Daily per capita food intake for MAgPIE commodities.'
+f15_intake_NIN_iso 'Daily per capita food intake for MAgPIE commodities.'
+f15_intake_pc_observed_iso 'Intake estimate.' 	
+f15_kcal_pc_iso	'FAO food supply (including household waste).'	 
+f15_supply2intake_ratio_bottomup_iso 'food-specific ratio between calorie supply and intake.'  
+f15_supply2intake_ratio_FAO_iso	'Food-specific ratio between calorie supply and intake.' 
+f15_targets_EATLancet_iso	'Minimum and maximum targets for healthy food intake.'
+f36_historic_ag_employment 'Employment in agriculture, forestry and fishery.'
+f36_historic_hourly_labor_costs 'Mean nominal hourly labour cost per employee in agriculture.'
+f36_weekly_hours_iso 'Mean weekly hours actually worked per employed person.' 
+f38_hist_factor_costs_iso 'Factor costs for crop and livestock production.' 
+f38_historical_share_iso 'Share of capital of the factor requirements.' 
+f73_prod_specific_timber 'historical timber domestic demand.'  
+fm_gdp_defl_ppp 'GDP base year deflator.' 
+"
+df <- read.table(text = txt, header = TRUE)
+
+reactable::reactable(
+  df[, c("Filename", "Description")],   # colunas visíveis
+  highlight = TRUE,
+  striped = TRUE,
+  bordered = TRUE,
+  defaultExpanded = FALSE
+)
+```
+
+### Global level files: 
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+txt2<- "
+Filename Description
+f15_bmi 'Body mass index of population belonging to a BMI group.'  
+f15_bmi_shr_regr_paras 'Equation parameters for BMI shares estimates using regression analysis.' 
+f15_bodyheight_regr_paras 'Equations parameters for bodyheight regression.'
+f15_demand_regression_parameters 'Equation parameters for BMI shares estimates using regression analysis.' 
+f15_nutrition_attributes 'Describe final calory and protein supply of a product.'
+f15_prices_initial 'Prices from the FAO model projections for year 2005.'  
+f15_schofield_parameters	'Equation parameters for intake estimates using regression analysis.' 
+f15_schofield_parameters_height 'Equation parameters for intake estimates using regression analysis.'
+f18_res_combust_eff 'Share of nitrogen in biomass.' 
+f20_processing_conversion_factors 'Conversion factors of primary products into secondary products.' 
+f21_trade_balanceflow 'Balanceflow to match global production and domestic supply.'
+f36_regression_hourly_labor_costs 'Regression coeffcients of pooled OLS.' 
+f38_fac_req_fao 'Factor requirements for different crops at regional level.' 
+f38_regression_cap_share 'Regression parameters for capital share out of factor requirements.' 
+f50_fixation_freeliving 'Nitrogen fixation, freeliving bacteria.'
+f51_ef_n_soil 'Emission factors from cropland soils.'
+f62_bioplastic2biomass 'Demand of crop products for one tonne of bioplastic production.'	 
+f62_hist_dem_bioplastic 'Global production of bioplastics.' 
+fm_attributes 'Values from literature survey.' 
+"
+
+df2 <- read.table(text = txt2, header = TRUE)
+
+reactable::reactable(
+  df2[, c("Filename", "Description")],   # colunas visíveis
+  highlight = TRUE,
+  striped = TRUE,
+  bordered = TRUE,
+  defaultExpanded = FALSE
+)
+```
+
+### Regional level files: 
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+txt3<- "
+Filename  Description Code Dataset
+f09_development_state 'Development state according to world bank definition.' 'Same value LAM.' 'James' 
+f09_governance_indicator 'Governance Index in range from 0 to 1.'  'Same value LAM.' '-' 
+f13_tau_historical	'Historical trends in agricultural land use intensity Tau.' 'calcOutput(type = \"TauHistorical\", aggregate = \"region\", file = \"f13_tau_historical.csv\", round = 2, regionmapping = newregionfile)' 'Tau' 
+f13_tau_scenario 'Dummy file for regional exogenous tau path.'	'calcOutput(type = \"ExoTcDummy\", aggregate = \"region\", file = \"f13_tau_scenario.csv\", round = 4, regionmapping = newregionfile)' '-' 
+f13_tcguess	'Guess of annual TC in agriculture based on historic trends.' 'calcOutput(type = \"TCguess\", aggregate = \"region\", file = \"f13_tcguess.cs4\", round = 3, regionmapping = newregionfile)' '-' 
+f14_ir2rf_ratio 'Irrigated to rainfed yield.' 'Adapted using toolAggregate(), AQUASTAT dataset and weighting of avl_land_full_t_iso.cs3 file' 'AQUASTAT'
+f14_pasture_yields_hist	'Pasture yields (unit: tDM /ha).' 'Disaggregation using FAO weight: 6655 Permanent meadows and pastures Area (1000 ha).' 'FAOSTAT' 
+f14_region_yields 'Calculates the yield based on FAO - Data averaged (unit: t/ha).' 'Disaggregation using FAO weight: 6620 Cropland Area (1000 ha).' 'FAOSTAT' 
+f15_calib_factor_FAOfsupply	'Factor for calibrating estimated food supply.' 'toolAggregate(f15calib,rel=regionfile,from=\"CountryCode\", to = \"RegionCode\", weight = f09popiso[,\"y2010\",\"SSP2\"])' '-' 
+f15_fruitveg2others_kcal_ratio 'Share of fruits and vegetables in the others food group.' 'toolAggregate(f15fruit,rel=regionfile,from=\"CountryCode\", to = \"RegionCode\", weight = f09popiso[,years,\"SSP2\"])' '-' 
+f15_household_balanceflow 'Balance flow country-specific values on nutrition outcome.' 'Same value LAM.' 'FAOSTAT' 
+f15_intake_EATLancet 'Daily per capita food intake for MAgPIE commodities.' 'toolAggregate(f15targets,rel=regionfile,from=\"CountryCode\", to = \"RegionCode\", weight = f09popiso[,\"y2010\",\"SSP2\"])' '-' 
+f15_intake_NIN 'Daily per capita food intake for MAgPIE commodities.' 'toolAggregate(f15NIN,rel=regionfile, from=\"CountryCode\", to = \"RegionCode\", weight = f09popiso[,c(\"y2010\",\"y2030\",\"y2050\"),\"SSP2\"])' '-'  
+f15_supply2intake_ratio_bottomup	'Food-specific ratio between calorie supply and intake.' 'toolAggregate(f15supply,rel=regionfile, from=\"CountryCode\", to = \"RegionCode\", weight = f09popiso[,\"y2010\",\"SSP2\"])' '-' 
+f15_supply2intake_ratio_FAO 'Food-specific ratio between calorie supply and intake.' 'toolAggregate(f15supplyFAO,rel=regionfile, from=\"CountryCode\", to = \"RegionCode\", weight = f09popiso[,\"y2010\",\"SSP2\"])' '-' 
+f15_targets_EATLancet	'Minimum and maximum targets for healthy food intake.' 'toolAggregate(f15targets,rel=regionfile,from=\"CountryCode\", to = \"RegionCode\", weight = f09popiso[,\"y2010\",\"SSP2\"])' '-' 
+f16_domestic_balanceflow 'Balanceflow to domestic supply by different demand categories.' 'Same value LAM.' 'FAOSTAT' 
+f16_seed_shr 'Share of production used as seed.' 'Same value LAM.' 'FAOSTAT' 
+f16_waste_shr 'Share of domestic supply wasted.' 'Same value LAM.' 'FAOSTAT' 
+f18_multicropping 'Cropping intensity factor.' 'Same value LAM.' 'FAOSTAT' 
+f20_processing_balanceflow 'Balanceflow to balance out the assumption of uniform conversion factors.' 'Same value LAM.' 'FAOSTAT' 
+f20_processing_shares 'Share of processed products coming from different primary products.' 'Same value LAM.' 'FAOSTAT' 
+f21_trade_balance 'Trade balances.' 'Disaggregation using FAO weight: Production_(t).' 'FAOSTAT' 
+f21_trade_export_share 'Share of export of individual counties in total global exports.' 'Same value LAM.' 'FAOSTAT' 
+f21_trade_margin 'Trade margins (unit: US$2017).' 'Same value LAM.' 'FAOSTAT' 
+f21_trade_margin_bilat 'Trade margins bilat	(unit: US$2017).' 'Same value LAM.' 'FAOSTAT' 
+f21_trade_self_suff 'Countries self sufficiencies in agricultural production.' 'New values for the BRA region based on FAO data: production/domestic supply.' 'FAOSTAT' 
+f21_trade_tariff 'Total trade tariff	(unit: US$2017/tDM).' 'Same value LAM.' 'FAOSTAT' 
+f21_trade_tariff_bilat 'Total trade tariff bilat (unit: US$2017/tDM).' 'Same value LAM.' 'FAOSTAT' 
+f32_estb_calib 'Calibration factor for plantation establishment decisions.' 'Same value LAM (according to function script).' '-' 
+f32_fac_req_ha 'Afforestation factor requirement costs	(unit: US$2017/ha).' 'Adapted using SathayeForest dataset.' 'SathayeForest' 
+f32_gs_absolutetarget 'Calculates Growing stocks.' 'calcOutput(type = \"GrowingStockPlantAbsolute\", file = \"f32_gs_absolutetarget.cs4\", round = 0, regionmapping = newregionfile)
+' 'FRA 2020' 
+f32_gs_relativetarget 'Calculates Growing stocks.' 'calcOutput(type = \"GrowingStockpha\", file = \"f32_gs_relativetarget.cs4\", round = 0, regionmapping = newregionfile)
+' 'FRA 2020' 
+f32_gs_target	'Calculates Growing stocks.' 'calcOutput(type = \"GrowingStockPlantations\", file = \"f32_gs_target.cs4\", round = 0, regionmapping = newregionfile)
+' 'FRA 2020' 
+f32_plantation_contribution  'Calculates share of roundwood production coming from timber plantations.' '(in progress)' '(in progress)'
+f32_plantedforest 'Calculates the share of plantation forest in planted forest.' 'calcOutput(type = \"PlantedForest\", file = \"f32_plantedforest.cs4\", round = 3, regionmapping = regionfile)' 'FRA 2020' 
+f32_trade_self_suff 'Countries’ self sufficiencies in agricultural production.' 'New values for the BRA region based on FAO data: production/domestic supply.' 'FAOSTAT'  
+f35_forest_disturbance_share 'Area affected by forest disturbances.' 'calcOutput(type = \"ForestDisturbances\", file =\"f35_forest_disturbance_share.cs4\", round = 7, regionmapping = newregionfile)' 'FRA 2020' 
+f35_forest_lost_share 'Area lost in forests by drivers.'	'calcOutput(type = \"ForestLossShare\", file =\"f35_forest_lost_share.cs3\", round = 7, regionmapping = newregionfile)
+' 'FRA 2020, ForestLossDrivers' 
+f35_gs_absolutetarget 'Calculates Growing stocks.' 'calcOutput(type = \"GrowingStockNatVegAbsolute\", file = \"f35_gs_absolutetarget.cs4\", round = 0, regionmapping= newregionfile)
+' 'FRA 2020' 
+f35_gs_relativetarget 'Calculates Growing stocks in naturally regenerating forests.' 'calcOutput(type = \"GrowingStockNRF\", file = \"f35_gs_relativetarget.cs4\", round = 0, regionmapping = newregionfile)' 'FRA 2020' 
+f36_nonmagpie_factor_costs 'Factor costs affecting employment not included in MAgPIE factor costs.' 'Same value LAM.' 'TFUSDA, FAOSTAT'
+f36_unspecified_subsidies 'Factor costs affecting employment not included in MAgPIE factor costs.' 'calcOutput(\"NonMAgPIEFactorCosts\", subtype = \"subsidies\", aggSubsidies = TRUE, years = seq(1965, 2150, 5), round = 4, file = \"f36_unspecified_subsidies.csv\", regionmapping= newregionfile)' 'TFUSDA, IFRIsubsidy' 
+f36_weekly_hours 'Mean weekly hours actually worked per employed person.' 'toolAggregate(f36weekly,rel=regionfile,from=\"CountryCode\", to = \"RegionCode\", weight = f09popiso[,,\"SSP2\"])' '-' 
+f38_fac_req_fao_regional 'Factor requirements for different crops at regional level.' 'Same value LAM.' 'FAOSTAT' 
+f38_region_yield 'Calculates the yield based on FAO (unit: t/ha).' 'Same value f14_region_yields.cs3 new file (y1995).' 'FAOSTAT' 
+f41_c_irrig 'Unit cost for irrigation expansion.' 'Adapted using WBirrigation dataset.' 'WBirrigation'
+f42_pumping_cost 'Costs of pumping irrigation water.' 'calcOutput(type = \"PumpingCosts\", file = \"f42_pumping_cost.cs4\", round = 4, regionmapping = newregionfile)' '-' f50_atmospheric_deposition_rates 'Atmospheric deposition per ha on different land types.' 'Same value LAM.' '-' 
+f50_ndfa 'Share of N in biomass derived from biological fixation.' 'Adapted using Herridge dataset.' 'Herridge' 
+f50_nitrogen_balanceflow 'Balanceflow to account for unrealistically high SNUpEs.' 'Same value LAM.' 'FAOSTAT' 
+f50_nitrogen_balanceflow_pasture	'Balanceflow to account for unrealistically high NUEs on pastures.' 'Same value LAM.' 'FAOSTAT' 
+f50_nitrogen_fixation_rates_pasture 'Biological nitrogen fixation on pastures.' 'Same value LAM.' 'LUH3' 
+f50_nue_base_pasture 'Soil nitrogen uptake efficiency.' 'Same value LAM.' 'FAOSTAT' 
+f50_nue_pasture	'Soil nitrogen uptake efficiency.' 'Same value LAM.' 'FAOSTAT' 
+f50_snupe 'Soil nitrogen uptake efficiency.' 'Same value LAM.' 'FAOSTAT'  
+f50_snupe_base 'Soil nitrogen uptake efficiency.' 'Same value LAM.' 'FAOSTAT' 
+f51_ef_n_soil_reg 'Emission factors from cropland soils.' 'Same value LAM.' '-' 
+f51_ef3_confinement 'Share of nitrogen in managed manure emitted in various forms or recycled.' 'Same value LAM.' '-' 
+f51_ef3_prp 'Direct soil emissions from manure excreted during pasture.' 'Same value LAM.' 'FAOSTAT' 
+f52_land_carbon_sink_adjust_grassi 'Emission adjustment factors.' '(in progress)' '(in progress)' 
+f53_EFch4AWMS 'Methane emissions during animal waste management as a ratio to nitrogen excretion.' 'Same value LAM.' 'FAOSTAT'  
+f53_EFch4Rice 'Emission factor per area.' 'Same value LAM.' 'FAOSTAT' 
+f55_awms_recycling_share 'Share of nitrogen in managed manure emitted in various forms or recycled.' 'Same value LAM.' '-' 
+f55_awms_shr 'Share of excreted nitrogen within stables excreted in which animal waste management systems.' 'Same value LAM.' 'FAOSTAT' 
+f55_manure_fuel_shr 'Share of excreted nitrogen on pastures that is collected for fuel.' 'Same value LAM. 'FAOSTAT' 
+f56_pollutant_prices 'Ghg certificate prices for different scenarios based on data from REMIND-MAgPIE-coupling.' 'Same value LAM.' '-' 
+f56_pollutant_prices_sim4nexus 'Ghg certificate prices for different scenarios based on CO2 prices provided by IMAGE.' 'Same value LAM.' '-' 
+f57_maccs_ch4 'CH4 ImageMacc.' '(in progress)' '(in progress)' 
+f57_maccs_ch4_2019 'CH4 PBL_MACC_2019.' '(in progress)' 'PBL_MACC_2019' 
+f57_maccs_ch4_2022 'CH4 PBL_MACC_2022.' '(in progress)' '(in progress)' 
+f57_maccs_n2o 'N2O ImageMacc.' '(in progress)' '(in progress)' 
+f57_maccs_n2o_2019 'N2O PBL_MACC_2019.' '(in progress)' '(in progress)' 
+f57_maccs_n2o_2022 'N2O PBL_MACC_2022.' '(in progress)' '(in progress)' 
+f59_ch5_F_LU_2019reg 'Stock change factors for first 30 cm of the soil profile.' '(in progress)' '(in progress)' 
+f59_som_exogenous 'Nr release through soil organic matter loss.' 'New values for LAM and BRA regions: 1/2 BRA and 1/2 LAM.' '-' 
+f60_1stgen_bioenergy_dem '1st generation bioenergy demand for different scenarios.' 'Same value LAM.' 'FAOSTAT' 
+f60_2ndgenBE_residue_dem 'Agricultural residues potentially available for 2nd generation bio energy.' 'New values for LAM and BRA regions: 3/4 BRA and 1/4 LAM.' '-' 
+f60_bioenergy_dem '2nd generation bioenergy demand for different scenarios taken from R2M41 coupled runs.' 'Same value LAM.' '-' 
+f60_bioenergy_dem_sim4nexus 	'2nd generation bioenergy demand for different scenarios provided by IMAGE.' 'Same value LAM.' '-' 
+f62_dem_material 'Historical material demand.' 'Disaggregation using FAO weight: Production_(t).' 'FAOSTAT' 
+f70_feed_balanceflow 'Difference between feed baskets and feed use.' 'Same value LAM.' '-' 
+f70_feed_baskets 'Detailed feed requirements.' 'Same value LAM.' '-' 
+f70_hist_factor_costs_livst 'Factor costs for livestock production.' '(in progress)' 'FAOSTAT' 
+f70_hist_prod_livst 'Crop, pasture and livestock production.' '(in progress)' 'FAOSTAT' 
+f70_livestock_productivity 'Livestock productivity (yield) as stock (meat producers) or producer (dairy/egg) yield.' 'New value for BRA region: BRA=0.8*USA.' '-' 
+f70_pyld_slope_reg 'Slope of pasture intensification' 'Same value LAM.' '-' 
+f70_slaughter_feed_share 'Share of feed intake that gets withdrawn by slaughtermass per product.' 'New value for BRA region: BRA=0.8*USA.' '-' 
+f73_construction_wood_demand 'Calculated the construction wood demand for a certain share of NEW urban settlers.' 'Same value LAM.' '-' 
+f73_regional_timber_demand 'historical timber domestic demand.' 'toolAggregate(f73prod,rel=regionfile,from=\"CountryCode\", to = \"RegionCode\")' '-' 
+fm_tau1995 'Agricultural land Use Intensity Tau.' 'calcOutput(\"TauTotal\", round=2, regionmapping = regionfile)' 'Tau' 
+"
+
+df3 <- read.table(text = txt3, header = TRUE)
+
+reactable::reactable(
+  df3[, c("Filename", "Description")],   #colunas visíveis
+  highlight = TRUE,
+  striped = TRUE,
+  bordered = TRUE,
+  defaultExpanded = FALSE,
+  details = function(index) {
+    item <- df3[index, ]
+
+    htmltools::div(
+      style = "padding: 15px; background: #f8f8f8;", #conteúdo oculto
+      htmltools::tags$h4(paste("Datasets:")),
+      htmltools::tags$p(item$Dataset),  
+      htmltools::tags$h4(paste("Method:")),
+      htmltools::tags$code(item$Code)
+    )
+  }
+)
+```
+
+
+## Bundle validation: rev4.117_h12_validation.tgz
+
+This bundle contains a validation file that was not used in this processing step. 
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+txtval<- "
+Filename Description
+Validation.mif 'Additional data repository for MAgPIE.'
+"
+
+dfval <- read.table(text = txtval, header = TRUE)
+
+reactable::reactable(
+  dfval[, c("Filename", "Description")],   # colunas visíveis
+  highlight = TRUE,
+  striped = TRUE,
+  bordered = TRUE,
+  defaultExpanded = FALSE
+)
+```
+
+
+## Bundle additional  = additional_data_rev4.62.tgz
+
+This bundle contains global-level files; therefore, they were not processed again. The original files were used. 
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+txtad<- "
+Filename Description
+f12_interest_fader	'(Global level).'	
+f12_interest_rate		'Interest rate. Data based on IPCC 2007 Climate Change (Global level).'
+f12_interest_rate_bound	'Lower and higher bound of interest rate (Global level).'
+f12_interest_rate_coupling	'Interest rate. Data based on REMIND (Global level).' 
+f13_tc_exponent		'Exponent for tc regression (Global level).'
+f13_tc_factor		'Factor for tc regression (Global level).'
+f14_aboveground_fraction	'Based on LPJmL values and expert opinions (Global level).'
+f14_ipcc_bce		'Taken from FRA 2015 WORKING PAPER 184 (Global level).'
+f14_kcr_pollinator_dependence	'Based on Klein, et al 2007	(Global level).' 
+f15_exo_foodscen_fader		'(Global level).'	
+f15_food_substitution_fader		'(Global level).'	
+f15_kcal_balanceflow_fadeout		'(Global level).'	
+f15_milk_fadeout_india		'(Global level).'	
+f15_prices_index		'(Global level).'	
+f15_ruminant_fadeout		'(Global level).'	
+f15_ruminant_fadeout_india		'(Global level).'	
+f18_attributes_residue_ag		'(Global level).'	
+f18_attributes_residue_bg		'(Global level).'	
+f18_cgf		'(Global level).'	
+f18_fac_req_kres	'Based on Budynski, Stephanie 2020	(Global level).'	
+f18_res_use_burn		'Description here'
+f20_calibration		'Description here'
+f20_processing_unitcosts		'Description here'
+f20_quality_cost	'Description here'	
+f20_scp_conversionmatrix		'(Global level).'	
+f20_scp_processing_shares		'(Global level).'	
+f20_scp_type_shr		'(Global level).'	
+f20_scp_unitcosts	'USD per ton DM Microbial Protein (MP) production exclusive feedstock costs	(Global level).'	
+f21_trade_bal_reduction		'Description here'
+f30_rotation_incentives		'(Global level).'	
+f30_rotation_max		'(Global level).'	
+f30_rotation_max_scen		'(Global level).'	
+f30_rotation_max_scen		'-'
+f30_rotation_min		'(Global level).'	
+f30_rotation_min_scen		'(Global level).'	
+f30_rotation_rules		'(Global level).'	
+f32_ac_dist		'(Global level).'	
+f32_forest_shock		'(Global level).'	
+f32_plant_prod_share	'Share of timber production coming from plantations (Global level).'
+f35_forest_shock		'(Global level).'	
+f35_protection_fader		'(Global level).'	
+f38_fac_req		'(Global level).'	
+f38_fac_req_per_ton	'(Global level).'	
+f38_fac_req_reg	'Description here'
+f42_wat_req_fao		'(Global level).'	
+f44_bii_coeff		'Description here'
+f44_price_biodiv_loss	'(Global level).'	
+f51_ef_resid_burn	'Description here'
+f51_ipcc_ef		'(Global level).'	
+f52_growth_par	'Parameters for Chapman-Richards growth function from Braakhekke et al 2019 (Global level).'	
+f55_closs_awms	'Carbon loss rates during storage in AWMS	(Global level).'	
+f55_excretion_cnratio	'c/n ratio. Note: data based on USDA 2008 (Global level).'	
+f56_emis_policy	'(Global level).'	
+f58_ipcc_wetland_ef		'Description here'
+f58_ipcc_wetland_ef2		'Description here'
+f59_ch5_F_I	'IPCC. 2006. Table 5.5	(Global level).'	
+f59_ch5_F_IRR		'Description here'
+f59_ch5_F_LU	'IPCC. 2006 (Global level).'	
+f59_ch5_F_MG	'IPCC. 2006 Table 5.5 (Global level).'	
+f70_capit_liv_regr '(Global level).'	
+f70_feed_substitution_fader	'(Global level).'	
+f73_demand_modifier	'(Global level).'	
+f73_income_elasticity	'Taken from Supply and demand functions for global wood markets: Specification and plausibility testing of econometric models within the global forest sector (Global level).'	
+f73_volumetric_conversion	'Volumetric m3 to ton conversion (Global level).'	
+p20_processing_unitcosts		'-'
+policy_definitions		'(Country level).'
+seals_global_coefficients	'(Global level).'	
+seals_scenario_config		'-'
+"
+
+dfad <- read.table(text = txtad, header = TRUE)
+
+reactable::reactable(
+  dfad[, c("Filename", "Description")],   # colunas visíveis
+  highlight = TRUE,
+  striped = TRUE,
+  bordered = TRUE,
+  defaultExpanded = FALSE
+)
+```
+
+
+## Bundle calibration = calibration_H12_FAO_13Mar25.tgz
+
+This bundle contains regional-level calibration files. These files still need to be studied in greater detail to refine the process; however, for the new BRA region, the same values as those for the LAM region were initially used. 
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+txtcal<- "
+Filename Description
+f14_yld_calib	'Regional yield calibration file. Note: Best calibration factor from the run (origin: scripts/calibration/calc_calib.R)'
+f39_calib	'Regional land conversion cost calibration file. Note: Calibration step 19 (origin: scripts/calibration/landconversion_cost.R)'
+"
+dfcal <- read.table(text = txtcal, header = TRUE)
+
+reactable::reactable(
+  dfcal[, c("Filename", "Description")],   # colunas visíveis
+  highlight = TRUE,
+  striped = TRUE,
+  bordered = TRUE,
+  defaultExpanded = FALSE
+)
+```
+
+
+
+
+
+
+# Summary and next steps
+
+The process of creating new clusters within a newly defined region in the MAgPIE configuration involved both straightforward and complex steps. Given that input data preparation is a crucial step when modifying MAgPIE's spatial structure, the preprocessing phase plays a key role in refining the resolution and reliability of model outputs for Brazil. While initial tasks—such as acquiring input data and modifying mapping files—were relatively simple, the workflow also required extensive, time-consuming efforts to identify and resolve errors that emerged during the generation of new input files based on the updated spatial configuration.
+
+For the next phases, once all input data has been properly prepared, we aim to replicate the analyses performed using MAgPIE's original spatial structure. The objective is to compare the key output variables—such as harvested crop areas, cattle herd production, and deforestation—between the newly customized spatial configuration and the original setup. Once more, we will benchmark our results against official Brazilian public datasets to validate consistency and enhance reliability. Additionally, by defining Brazil as a standalone region, we will be able to explicitly evaluate trade flows between Brazil and other global regions, enabling more accurate analyses of international trade dynamics involving Brazilian agricultural and land-use sectors.
+
+# References 
