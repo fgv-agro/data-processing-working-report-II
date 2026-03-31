@@ -487,7 +487,7 @@ Another widely used function was `toolAggregate()`, also from the madrat package
 
 This bundle contains files processed at all levels, including: cell, country, global, regional, and cluster. Files at the cell, country, and global levels do not require additional processing. 
 
-### Cellular level 
+### Cellular level files:
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 txtad2<-"
 Filename Description 
@@ -528,7 +528,7 @@ reactable::reactable(
 )
 ```
 
-### Country level
+### Country level files:
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 txtad3<- "
 Filename Description
@@ -551,12 +551,12 @@ reactable::reactable(
 )
 ```
 
-### Global level: 
+### Global level files:
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 txtad5<-"
 Filename Description
-f40_transport_costs 'Transport costs in USD per t dm per minute by (Country level) and product.'
-f40_transport_costs_nonlocal 'Transport costs in USD per t dm per minute by (Country level) and product.'
+f40_transport_costs 'Transport costs in USD per t DM per minute by product.'
+f40_transport_costs_nonlocal 'Transport costs in USD per t dm per minute by product.'
 "
 
 dfad5 <- read.table(text = txtad5, header = TRUE)
@@ -570,11 +570,11 @@ reactable::reactable(
 )
 ```
 
-### Regional level
+### Regional level files:
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 txtad4<- "
 Filename Description Code Dataset
-f13_pastr_tau_hist 'Historical trends in managed pastures land use intensity (Tau) based on FAO yield trends.' '(in progress)' '(in progress)'
+f13_pastr_tau_hist 'Historical trends in managed pastures land use intensity (Tau) based on FAO yield trends.' 'Same value LAM.' '-'
 " 
 
 dfad4 <- read.table(text = txtad4, header = TRUE)
@@ -600,66 +600,72 @@ reactable::reactable(
 
 ```
 
-### Cluster level 
+### Cluster level files:
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 library(htmltools)
 library(reactable)
 txtad<- "
 Filename Description Code Dataset
-aff_noboreal_c200 '-' '(in progress)' 'LUH3'
-aff_onlytropical_c200 '-' '(in progress)' 'LUH3'
-aff_unrestricted_c200 '-' '(in progress)' 'LUH3'
-avl_cropland_c200 'Cropland suitability based on Zabel et al. (2014)' 'toolAggregate(avlcrop,rel=regionfilecluster, from=\"cell\", to=\"cluster\")' '-'
-avl_irrig_c200 'Area equipped for irrigation' 'calcOutput(type = \"AreaEquippedForIrrigation\", aggregate = \"cluster\", file = \"avl_irrig_c200.mz\", round = 5, cells = \"lpjcell\", cellular = TRUE, selectyears = c(\"y1995\", \"y2000\", \"y2005\", \"y2010\", \"y2015\"), regionmapping = regionfilecluster)
+
+aff_noboreal_c200 'Available land area for afforestation, excluding boreal regions.' 'Same value LAM.' '-'
+aff_onlytropical_c200 'Maximum area available for afforestation, exclusively in tropical regions.' 'Adapted using toolAggregate(), based on the average values across the LAM clusters belonging to Brazil' '-'
+aff_unrestricted_c200 'Maximum area available for afforestation, without any geographic restriction.' 'Same value LAM.' '-'
+avl_cropland_c200 'Cropland suitability based on Zabel et al. (2014).' 'toolAggregate(avlcrop, rel = regionfilecluster, from = \"cell\", to = \"cluster\")' '-'
+avl_irrig_c200 'Area equipped for irrigation.' 'calcOutput(type = \"AreaEquippedForIrrigation\", aggregate = \"cluster\", file = \"avl_irrig_c200.mz\", round = 5, cells = \"lpjcell\", cellular = TRUE, selectyears = c(\"y1995\", \"y2000\", \"y2005\", \"y2010\", \"y2015\"), regionmapping = regionfilecluster)
 ' 'LUH3, Mehta2024'
-avl_land_full_t_c200 'Land use initialisation data for different land pools' 'toolAggregate(avl_l,rel=regionfilecluster, from=\"cell\", to=\"cluster\")' '-'
-avl_land_si_c200 'si and nsi0 areas based on Ramankutty suitability information and LUH area information from initialization year' 'toolAggregate(avl_lsi,rel=regionfilecluster, from=\"cell\", to=\"cluster\")' '-'
-avl_land_t_c200 'Land use initialisation data for different land pools' 'toolAggregate(avl_lt,rel=regionfilecluster, from=\"cell\", to=\"cluster\")' '-'
-biorealm_biome_c200 'Mha of biome type of each' '(in progress)' 'TNC2019, LUH3'
-cell_country_fraction_c200 'Cell fraction belonging to a country' '(in progress)' 'LUH3'
-consv_prio_areas_c200 'Land conservation priority targets in each land type. Land use in conservation priority areas is based on the reference year y1750 (pre-industrial)' 'toolAggregate(consvp,rel=regionfilecluster, from=\"cell\", to=\"cluster\")' '-'
-CroplandTreecover_c200 'Cropland area covered by trees in 2015' 'toolAggregate(cropl,rel=regionfilecluster, from=\"cell\", to=\"cluster\")' '-'
-cshare_released_c200 'Soil organic carbon loss share per crop type' '(in progress)' 'IPCCClimate'
-f09_pop_grid 'Population in millions' '(in progress)' 'GridPopIsimip, GridPopGao'
-f09_urbanpop_grid 'Population in millions' '(in progress)' 'GridPopIsimip, GridPopGao'
-f14_degradation_yld_reduc_c200 'Dummy file for yield reduction coefficients to represent land degradation' 'calcOutput(type = \"DegradationYieldReduction\", aggregate = \"cluster\", file = \"f14_degradation_yld_reduc_c200.mz\", round = 6, regionmapping = regionfilecluster)' '-'
-f30_croparea_initialisation_c200 'Harvested crop areas from FAOSTAT' '(in progress)' 'FAO'
-f30_croparea_w_initialisation_c200 'Harvested crop areas from FAOSTAT' '(in progress)' 'FAO'
-f32_bph_effect_noTCRE_c200 'Biogeophysical temp change of afforestation in degC' '(in progress)' '(in progress)'
-f32_bph_mask_c200 'Nonan Mask of BPH Effect Dataset' '(in progress)' '(in progress)'
-f32_localTCRE_c200 'Local Transient Climate Response to tc per ha in degC' '(in progress)' '(in progress)'
-f34_urbanland_c200 'Amount of Urban land expansion for various SSPs' 'toolAggregate(f34urbanl,rel=regionfilecluster, from=\"cell\", to=\"cluster\")' '-'
-f37_labourprodimpact_c200 'Remaining labour productivity as percentage of full labour' '(in progress)' '(in progress)'
-f37_labourprodrelief_c200 'Remaining labour productivity as percentage of full labour' '(in progress)' '(in progress)'
-f50_AtmosphericDepositionRates_c200 'Atmospheric deposition per ha on different land types' 'toolAggregate(f50atmo,rel=regionfilecluster, from=\"cell\", to=\"cluster\")' '-'
-f50_NitrogenFixationRateNatural_c200 'Nitrogen fixation freeliving bacteria' 'toolAggregate(f50nitro,rel=regionfilecluster, from=\"cell\", to=\"cluster\")' '-'
-f58_peatland_area_c200 'Intact and degraded peatland area (Mha) by land-use type, based GPD 2022 and GPM2.0' 'toolAggregate(f58peatl,rel=regionfilecluster, from=\"cell\", to=\"cluster\")' '-'
-f58_peatland_degrad_c200 'Degraded peatland area (Mha) in 0.5 degree resolution based on Humpenoeder et al' 'toolAggregate(f58peatdegrad,rel=regionfilecluster, from=\"cell\", to=\"cluster\")' '-'
-f58_peatland_intact_c200 'Intact peatland area (Mha) in 0.5 degree resolution based on Humpenoeder et al ' 'toolAggregate(f58peatint,rel=regionfilecluster, from=\"cell\", to=\"cluster\")' '-'
-f59_som_initialisation_pools_c200 'Soil carbon in cropland and non-cropland soils' '(in progress)' '(in progress)'
+avl_land_full_t_c200 'Land use initialisation data for different land pools.' 'toolAggregate(avl_l, rel = regionfilecluster, from = \"cell\", to = \"cluster\")' '-'
+avl_land_si_c200 'si and nsi0 areas based on Ramankutty suitability information and LUH area information from initialization year.' 'toolAggregate(avl_lsi, rel = regionfilecluster, from = \"cell\", to = \"cluster\")' '-'
+avl_land_t_c200 'Land use initialisation data for different land pools.' 'toolAggregate(avl_lt, rel = regionfilecluster, from = \"cell\", to = \"cluster\")' '-'
+biorealm_biome_c200 'Mha of biome type of each.' 'Adapted using toolAggregate(), based on the average values across the LAM clusters belonging to Brazil' '-'
+cell_country_fraction_c200 'Cell fraction belonging to a country.' 'All set to 1.' '-'
+
+consv_prio_areas_c200 'Land conservation priority targets in each land type. Land use in conservation priority areas is based on the reference year y1750 (pre-industrial).' 'toolAggregate(consvp, rel = regionfilecluster, from = \"cell\", to = \"cluster\")' '-'
+CroplandTreecover_c200 'Cropland area covered by trees in 2015.' 'toolAggregate(cropl, rel = regionfilecluster, from = \"cell\", to = \"cluster\")' '-'
+cshare_released_c200 'Soil organic carbon loss share per crop type.' 'Adapted using toolAggregate(), based on the average values across the LAM clusters belonging to Brazil' '-'
+f09_pop_grid 'Population in millions.' 'Adapted using toolAggregate(), based on the average values across the LAM clusters belonging to Brazil' 'GridPopIsimip, GridPopGao'
+f09_urbanpop_grid 'Population in millions.' 'Adapted using toolAggregate(), based on the average values across the LAM clusters belonging to Brazil' 'GridPopIsimip, GridPopGao'
+f14_degradation_yld_reduc_c200 'Dummy file for yield reduction coefficients to represent land degradation.' 'calcOutput(type = \"DegradationYieldReduction\", aggregate = \"cluster\", file = \"f14_degradation_yld_reduc_c200.mz\", round = 6, regionmapping = regionfilecluster)' '-'
+f30_croparea_initialisation_c200 'Harvested crop areas from FAOSTAT.' 'Adapted using toolAggregate(), based on the average values across the LAM clusters belonging to Brazil' 'FAO'
+f30_croparea_w_initialisation_c200 'Harvested crop areas from FAOSTAT.' 'Adapted using toolAggregate(), based on the average values across the LAM clusters belonging to Brazil' 'FAO'
+f32_bph_effect_noTCRE_c200 'Biogeophysical temp change of afforestation in degC.' 'Adapted using toolAggregate(), based on the average values across the LAM clusters belonging to Brazil' '-'
+f32_bph_mask_c200 'Nonan Mask of BPH Effect Dataset.' 'Adapted using toolAggregate(), based on the average values across the LAM clusters belonging to Brazil' '-'
+
+f32_localTCRE_c200 'Local Transient Climate Response to tc per ha in degC.' 'Adapted using toolAggregate(), based on the average values across the LAM clusters belonging to Brazil' '-'
+f34_urbanland_c200 'Amount of Urban land expansion for various SSPs.' 'toolAggregate(f34urbanl, rel = regionfilecluster, from = \"cell\", to = \"cluster\")' '-'
+f37_labourprodimpact_c200 'Remaining labour productivity as percentage of full labour.' 'Adapted using toolAggregate(), based on the average values across the LAM clusters belonging to Brazil' '-'
+f37_labourprodrelief_c200 'Remaining labour productivity as percentage of full labour.' 'Adapted using toolAggregate(), based on the average values across the LAM clusters belonging to Brazil' '-'
+f50_AtmosphericDepositionRates_c200 'Atmospheric deposition per ha on different land types.' 'toolAggregate(f50atmo, rel = regionfilecluster, from = \"cell\", to = \"cluster\")' '-'
+f50_NitrogenFixationRateNatural_c200 'Nitrogen fixation freeliving bacteria.' 'toolAggregate(f50nitro, rel = regionfilecluster, from = \"cell\", to = \"cluster\")' '-'
+f58_peatland_area_c200 'Intact and degraded peatland area (Mha) by land-use type, based GPD 2022 and GPM2.0,' 'toolAggregate(f58peatl, rel = regionfilecluster, from = \"cell\", to = \"cluster\")' '-'
+f58_peatland_degrad_c200 'Degraded peatland area (Mha) in 0.5 degree resolution based on Humpenoeder et al.' 'toolAggregate(f58peatdegrad, rel = regionfilecluster, from = \"cell\", to = \"cluster\")' '-'
+f58_peatland_intact_c200 'Intact peatland area (Mha) in 0.5 degree resolution based on Humpenoeder et al.' 'toolAggregate(f58peatint, rel = regionfilecluster, from = \"cell\", to = \"cluster\")' '-'
+f59_som_initialisation_pools_c200 'Soil carbon in cropland and non-cropland soils.' 'Adapted using toolAggregate(), based on the average values across the LAM clusters belonging to Brazil' '-'
+
 forestageclasses_c200 'Forest area in 15 age classes based the Global level Forest Age ' 'calcOutput(type = \"AgeClassDistribution\", aggregate = \"cluster\", file = \"forestageclasses_c200.mz\", round = 6, regionmapping = regionfilecluster)' 'GFAD'
-ipcc_climate_zones_c200 'Climate classification according to: ipcc ' '(in progress)' 'LUH3'
-koeppen_geiger_c200 'Climate classification according to: koeppen (Cluster level)' '(in progress)' 'Koeppen'
-lpj_airrig_c200 'Irrigation water (water applied in addition to rainfall) for different crop types following LPJmL irrigation system assumptions' '(in progress)' '(in progress)'
-lpj_carbon_stocks_c200 'Carbon in tons per hectar for different land use types' 'toolAggregate(lpjcarbonstock,rel=regionfilecluster, from=\"cell\", to=\"cluster\")' '-'
-lpj_carbon_topsoil_c200 'Topsoil carbon in tons per hectar for natural vegetation' 'toolAggregate(lpjcarbontop,rel=regionfilecluster, from=\"cell\", to=\"cluster\")' '-'
-lpj_envflow_grper_c200 'EFR according to Smakthin method in grper' '(in progress)' '(in progress)'
-lpj_envflow_total_c200 'EFR according to Smakthin method in total' '(in progress)' '(in progress)'
-lpj_watavail_grper_c200 'Available water in grper' '(in progress)' '(in progress)'
-lpj_watavail_total_c200 'Available water in total' '(in progress)' '(in progress)'
-lpj_yields_c200 'Yields in tons per hectar for different crop types' 'toolAggregate(lpjyields,rel=regionfilecluster, from=\"cell\", to=\"cluster\")' '-'
-luh2_side_layers_c200 'Data from LUH2 provided by David Leclere from IIASA, Bending the curve on biodiversity loss' 'toolAggregate(luh2side,rel=regionfilecluster, from=\"cell\", to=\"cluster\")' '-'
-npi_ndc_ad_aolc_pol_c200 'Dummy file for implementing forestry prescribed exogoneously by NDC/NPI policy as opposed to CDR GHG prices' 'calcOutput(type = \"NpiNdcAdAolcPol\", aggregate = \"cluster\", file = \"npi_ndc_ad_aolc_pol_c200.mz\", round = 5, regionmapping = regionfilecluster) 
+ipcc_climate_zones_c200 'Climate classification according to: ipcc.' 'Adapted using toolAggregate(), based on the average values across the LAM clusters belonging to Brazil' 'LUH3'
+koeppen_geiger_c200 'Climate classification according to: Koeppen.' 'Adapted using toolAggregate(), based on the average values across the LAM clusters belonging to Brazil' '-'
+lpj_airrig_c200 'Irrigation water (water applied in addition to rainfall) for different crop types following LPJmL irrigation system assumptions.' 'Adapted using toolAggregate(), based on the average values across the LAM clusters belonging to Brazil' '-'
+lpj_carbon_stocks_c200 'Carbon in tons per hectar for different land use types.' 'toolAggregate(lpjcarbonstock, rel = regionfilecluster, from = \"cell\", to = \"cluster\")' '-'
+lpj_carbon_topsoil_c200 'Topsoil carbon in tons per hectar for natural vegetation.' 'toolAggregate(lpjcarbontop, rel = regionfilecluster, from = \"cell\", to = \"cluster\")' '-'
+lpj_envflow_grper_c200 'EFR according to Smakthin method in grper.' 'Adapted using toolAggregate(), based on the average values across the LAM clusters belonging to Brazil' '-'
+lpj_envflow_total_c200 'EFR according to Smakthin method in total.' 'Adapted using toolAggregate(), based on the average values across the LAM clusters belonging to Brazil' '-'
+lpj_watavail_grper_c200 'Available water in grper.' 'Adapted using toolAggregate(), based on the average values across the LAM clusters belonging to Brazil' '-'
+lpj_watavail_total_c200 'Available water in total.' 'Adapted using toolAggregate(), based on the average values across the LAM clusters belonging to Brazil' '-'
+
+lpj_yields_c200 'Yields in tons per hectar for different crop types.' 'toolAggregate(lpjyields, rel = regionfilecluster, from = \"cell\", to = \"cluster\")' '-'
+luh2_side_layers_c200 'Data from LUH2 provided by David Leclere from IIASA, Bending the curve on biodiversity loss.' 'toolAggregate(luh2side, rel = regionfilecluster, from = \"cell\", to = \"cluster\")' '-'
+npi_ndc_ad_aolc_pol_c200 'Dummy file for implementing forestry prescribed exogoneously by NDC/NPI policy as opposed to CDR GHG prices.' 'calcOutput(type = \"NpiNdcAdAolcPol\", aggregate = \"cluster\", file = \"npi_ndc_ad_aolc_pol_c200.mz\", round = 5, regionmapping = regionfilecluster) 
 ' '-'
-npi_ndc_aff_pol_c200 'Dummy file for NPI/INDC policies' 'calcOutput(type = \"NpiNdcAffPol\", aggregate = \"cluster\", file = \"npi_ndc_aff_pol_c200.mz\", round = 5, regionmapping = regionfilecluster) ' '-'
-pot_forest_area_c200 'Potential forest area' 'toolAggregate(potforestarea,rel=regionfilecluster, from=\"cell\", to=\"cluster\")' '-'
-protect_area_c200 'Conservation priority areas' '(in progress)' 'LUH3'
-rr_layer_c200 'Range-rarity layer provided by David Leclere from IIASA, Bending the curve on biodiversity loss' '(in progress)' '(in progress)'
-SNVTargetCropland_c200 'Cropland area (Mha) that requires relocation in response of a share of 20% and 50% semi-natural vegetation in farmed landscapes' 'toolAggregate(SNVtarget,rel=regionfilecluster, from=\"cell\", to=\"cluster\")' '-'
-transport_distance_c200 'Travel time to major cities or ports' 'toolAggregate(transportdis,rel=regionfilecluster, from=\"cell\", to=\"cluster\")' '-'
-watdem_nonagr_grper_c200 'Non-agricultural water demand (manufacturing, electricity, domestic) in growing period' '(in progress)' 'ISIMIPinputs'
-watdem_nonagr_total_c200 'Total non-agricultural water demand (manufacturing, electricity, domestic)' '(in progress)' 'ISIMIPinputs'
-wdpa_baseline_c200 'Protected land area in terms of cropland, pasture, forest and other land between 1995 and 2020' 'toolAggregate(wdpabaseline,rel=regionfilecluster, from=\"cell\", to=\"cluster\")' '-'
+npi_ndc_aff_pol_c200 'Dummy file for NPI/INDC policies.' 'calcOutput(type = \"NpiNdcAffPol\", aggregate = \"cluster\", file = \"npi_ndc_aff_pol_c200.mz\", round = 5, regionmapping = regionfilecluster) ' '-'
+pot_forest_area_c200 'Potential forest area.' 'toolAggregate(potforestarea, rel = regionfilecluster, from = \"cell\", to = \"cluster\")' '-'
+protect_area_c200 'Conservation priority areas.' 'Adapted using toolAggregate(), based on the average values across the LAM clusters belonging to Brazil' '-'
+rr_layer_c200 'Range-rarity layer provided by David Leclere from IIASA, Bending the curve on biodiversity loss.' 'Adapted using toolAggregate(), based on the average values across the LAM clusters belonging to Brazil' '-'
+SNVTargetCropland_c200 'Cropland area (Mha) that requires relocation in response of a share of 20% and 50% semi-natural vegetation in farmed landscapes.' 'toolAggregate(SNVtarget, rel = regionfilecluster, from = \"cell\", to = \"cluster\")' '-'
+transport_distance_c200 'Travel time to major cities or ports.' 'toolAggregate(transportdis, rel = regionfilecluster, from = \"cell\", to = \"cluster\")' '-'
+watdem_nonagr_grper_c200 'Non-agricultural water demand (manufacturing, electricity, domestic) in growing period.' 'Adapted using toolAggregate(), based on the average values across the LAM clusters belonging to Brazil' '-'
+
+watdem_nonagr_total_c200 'Total non-agricultural water demand (manufacturing, electricity, domestic).' 'Adapted using toolAggregate(), based on the average values across the LAM clusters belonging to Brazil' 'ISIMIPinputs'
+wdpa_baseline_c200 'Protected land area in terms of cropland, pasture, forest and other land between 1995 and 2020.' 'toolAggregate(wdpabaseline, rel = regionfilecluster, from = \"cell\", to = \"cluster\")' '-'
 "
 
 dfad <- read.table(text = txtad, header = TRUE, quote = "'", sep = " ")
@@ -673,32 +679,13 @@ reactable::reactable(
 
   details = function(index) {
     item <- dfad[index, ]
-    pdf_file <- paste0("img/", item$Filename, ".pdf")
 
     htmltools::div(
-      style = "padding: 15px; background: #f8f8f8;",
-
-      # Dataset
-      htmltools::tags$h4("Datasets:"),
-      htmltools::tags$p(item$Dataset),
-
-      # PDF no lugar do CODE
-      htmltools::tags$h4("Plot:"),
-      htmltools::tags$object(
-        data   = pdf_file,
-        type   = "application/pdf",
-        width  = "100%",
-        height = "300px",
-        style  = "border:1px solid #ccc; border-radius:4px;",
-        htmltools::tags$p(
-          "PDF não suportado. ",
-          htmltools::tags$a(
-            href = pdf_file,
-            target = "_blank",
-            "Abrir PDF"
-          )
-        )
-      )
+      style = "padding: 15px; background: #f8f8f8;", #conteúdo oculto
+      htmltools::tags$h4(paste("Datasets:")),
+      htmltools::tags$p(item$Dataset),  
+      htmltools::tags$h4(paste("Method:")),
+      htmltools::tags$code(item$Code)
     )
   }
 )
